@@ -52,8 +52,8 @@ customer_df = pd.read_csv("customer_summary.csv")
 
 X = customer_df[["TotalQuantity", "TotalSpending"]]
 
-scaler = joblib.load("scaler.pkl")
-dbscan = joblib.load("dbscan_model.pkl")
+scaler = joblib.load("scaler_ecommerce.pkl")
+dbscan = joblib.load("dbscan_ecommerce.pkl")
 
 X_scaled = scaler.transform(X)
 
