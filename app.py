@@ -1,13 +1,13 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 import pickle
 import os
-from sklearn.metrics import pairwise_distances
 
 # ---------------- Page Config ----------------
 st.set_page_config(
-    page_title="ShopScope",
+    page_title="MarketScope",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -15,12 +15,21 @@ st.set_page_config(
 # ---------------- Global CSS ----------------
 st.markdown("""
 <style>
-body { background-color: #0f172a; }
+body {
+    background-color: #0f172a;
+}
 
-.block-container { padding-top: 2rem; }
+.block-container {
+    padding-top: 2rem;
+}
 
-h1, h2, h3 { color: #e5e7eb; }
-p, li { color: #cbd5e1; }
+h1, h2, h3 {
+    color: #e5e7eb;
+}
+
+p, li {
+    color: #cbd5e1;
+}
 
 .hero {
     padding: 2.5rem;
@@ -41,80 +50,41 @@ p, li { color: #cbd5e1; }
     padding: 1.5rem;
     border-radius: 16px;
     text-align: center;
-    background: linear-gradient(135deg, #22c55e, #15803d);
-}
-
-.outlier-card {
-    padding: 1.5rem;
-    border-radius: 16px;
-    text-align: center;
-    background: linear-gradient(135deg, #ef4444, #991b1b);
+    background: linear-gradient(135deg, #16a34a, #166534);
 }
 
 .footer {
     text-align: center;
     color: #94a3b8;
     font-size: 0.85rem;
-    margin-top: 2rem;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- Load Models ----------------
+# ---------------- Load Artifacts ----------------
 @st.cache_resource
 def load_models():
-    base = os.path.dirname(__file__)
-    with open(os.path.join(base, "dbscan_ecommerce.pkl"), "rb") as f:
-        dbscan = pickle.load(f)
-    with open(os.path.join(base, "scaler_ecommerce.pkl"), "rb") as f:
+    with open("dbscan_ecommerce.pkl", "rb") as f:
+        model = pickle.load(f)
+    with open("scaler_ecommerce.pkl", "rb") as f:
         scaler = pickle.load(f)
-    return dbscan, scaler
+    return model, scaler
 
 dbscan, scaler = load_models()
 
-# ---------------- Load Data ----------------
-@st.cache_data
-def load_data():
-    base = os.path.dirname(__file__)
-    return pd.read_csv(os.path.join(base, "customer_summary.csv"))
+customer_df = pd.read_csv("customer_summary.csv")
+X = customer_df[["TotalQuantity", "TotalSpending"]]
+X_scaled = scaler.transform(X)
 
-df = load_data()
-
-X_train = df[["TotalQuantity", "TotalSpending"]]
-X_train_scaled = scaler.transform(X_train)
-
-# ---------------- DBSCAN Assignment ----------------
-def assign_cluster(dbscan, X_train_scaled, X_new_scaled):
-    core_samples = X_train_scaled[dbscan.core_sample_indices_]
-    core_labels = dbscan.labels_[dbscan.core_sample_indices_]
-
-    distances = pairwise_distances(X_new_scaled, core_samples)
-    min_dist = distances.min()
-    nearest_idx = distances.argmin()
-
-    if min_dist <= dbscan.eps:
-        return core_labels[nearest_idx]
-    else:
-        return -1
-
-# ---------------- Slider Ranges (Percentiles) ----------------
-qty_min = int(df["TotalQuantity"].quantile(0.05))
-qty_max = int(df["TotalQuantity"].quantile(0.95))
-qty_med = int(df["TotalQuantity"].median())
-
-sp_min = float(df["TotalSpending"].quantile(0.05))
-sp_max = float(df["TotalSpending"].quantile(0.95))
-sp_med = float(df["TotalSpending"].median())
-
-# ---------------- Hero ----------------
+# ---------------- Hero Section ----------------
 st.markdown("""
 <div class="hero">
-    <h1>ShopScope</h1>
-    <h3>E-Commerce Customer Segmentation</h3>
+    <h1>MarketScope</h1>
+    <h3>AI-driven Customer Behavior Segmentation</h3>
     <p>
-        This system uses DBSCAN to discover natural purchasing patterns.
-        Clusters represent real customer behaviors, while outliers indicate
-        unusual spending activity.
+        MarketScope analyzes historical purchasing behavior to discover
+        natural customer groups using density-based clustering.
+        Built for insight, strategy, and exploration — not rigid categorization.
     </p>
 </div>
 """, unsafe_allow_html=True)
@@ -122,121 +92,140 @@ st.markdown("""
 # ---------------- Metrics ----------------
 m1, m2, m3, m4 = st.columns(4)
 m1.metric("Algorithm", "DBSCAN")
-m2.metric("Features", "Quantity & Spending")
-m3.metric("Scaling", "StandardScaler")
-m4.metric("Outlier Detection", "Enabled")
+m2.metric("Features", "2")
+m3.metric("Data Type", "Transactional")
+m4.metric("Inference", "< 1 sec")
 
-# ---------------- Layout ----------------
+# ---------------- Main Layout ----------------
 left, center, right = st.columns([1.3, 1.8, 1.4])
 
 # -------- Left --------
 with left:
     st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    st.header("How to Read Results")
-
+    st.header("About the Model")
     st.write("""
-    - **Clusters** represent common purchasing patterns  
-    - **Outliers** behave very differently from most customers  
-    - The model is **pre-trained** and not re-fitted live  
-    """)
+    MarketScope uses **DBSCAN**, a density-based clustering algorithm.
 
-    st.write("""
-    This reflects the *learned structure of historical data*.
-    New customers are evaluated against that structure.
-    """)
+    Instead of forcing customers into fixed segments, it identifies
+    natural behavior patterns based on purchasing similarity.
 
+    Customers who do not fit common patterns are labeled as *unusual*
+    rather than incorrectly grouped.
+    """)
     st.markdown('</div>', unsafe_allow_html=True)
 
 # -------- Center --------
 with center:
     st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    st.header("Test a Customer")
+    st.header("Customer Analysis")
 
-    preset = st.selectbox(
-        "Customer Profile",
-        ["Custom", "Low Engagement", "Typical Customer", "High Value", "Extreme Case"]
+    qty = st.slider(
+        "Total Quantity Purchased",
+        int(X["TotalQuantity"].min()),
+        int(X["TotalQuantity"].max()),
+        int(X["TotalQuantity"].median())
     )
 
-    if preset == "Low Engagement":
-        qty = int(qty_min + 0.15 * (qty_max - qty_min))
-        spending = sp_min + 0.15 * (sp_max - sp_min)
-    elif preset == "Typical Customer":
-        qty = qty_med
-        spending = sp_med
-    elif preset == "High Value":
-        qty = int(qty_min + 0.75 * (qty_max - qty_min))
-        spending = sp_min + 0.75 * (sp_max - sp_min)
-    elif preset == "Extreme Case":
-        qty = qty_min
-        spending = sp_max
-    else:
-        qty = st.slider("Total Quantity Purchased", qty_min, qty_max, qty_med)
-        spending = st.slider("Total Spending", sp_min, sp_max, sp_med)
+    spending = st.slider(
+        "Total Spending",
+        int(X["TotalSpending"].min()),
+        int(X["TotalSpending"].max()),
+        int(X["TotalSpending"].median())
+    )
 
     analyze = st.button("Analyze Customer", use_container_width=True)
 
     if analyze:
-        X_new = np.array([[qty, spending]])
-        X_new_scaled = scaler.transform(X_new)
+        labels = dbscan.fit_predict(X_scaled)
+        customer_df["Cluster"] = labels
 
-        cluster = assign_cluster(
-            dbscan,
-            X_train_scaled,
-            X_new_scaled
+        user_point = np.array([[qty, spending]])
+        user_scaled = scaler.transform(user_point)
+
+        combined = np.vstack([X_scaled, user_scaled])
+        combined_labels = dbscan.fit_predict(combined)
+        user_cluster = combined_labels[-1]
+
+        cluster_descriptions = {
+            0: "Regular customers with steady purchasing behavior",
+            1: "High-value customers with strong spending patterns",
+            2: "Low-engagement customers with infrequent purchases"
+        }
+
+        if user_cluster == -1:
+            st.markdown(
+                """
+                <div class="result-card">
+                    <h2>Unusual Customer Pattern</h2>
+                    <p>This customer does not closely match any common group.</p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+        else:
+            st.markdown(
+                f"""
+                <div class="result-card">
+                    <h2>{cluster_descriptions.get(user_cluster)}</h2>
+                    <p>Based on similarity to existing customer behavior</p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+        fig, ax = plt.subplots(figsize=(6, 4))
+        for c in set(labels):
+            subset = customer_df[customer_df["Cluster"] == c]
+            label = "Unusual" if c == -1 else "Customer Group"
+            ax.scatter(
+                subset["TotalQuantity"],
+                subset["TotalSpending"],
+                s=50,
+                alpha=0.6,
+                label=label
+            )
+
+        ax.scatter(
+            qty, spending,
+            s=220,
+            c="gold",
+            edgecolors="black",
+            linewidths=1.5,
+            label="Selected Customer"
         )
 
-        if cluster == -1:
-            st.markdown("""
-            <div class="outlier-card">
-                <h2>Unusual Customer</h2>
-                <p>
-                This purchasing pattern does not match typical customers.
-                It may represent rare or exceptional behavior.
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
+        ax.set_xlabel("Total Quantity")
+        ax.set_ylabel("Total Spending")
+        ax.set_title("Customer Behavior Map")
+        ax.legend()
+        ax.grid(True)
 
-        elif cluster == 0:
-            st.markdown("""
-            <div class="result-card">
-                <h2>Low Engagement Customer</h2>
-                <p>
-                Limited purchasing activity and lower spending levels.
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
-
-        elif cluster == 1:
-            st.markdown("""
-            <div class="result-card">
-                <h2>High Value Customer</h2>
-                <p>
-                Frequent purchases and consistently higher spending.
-                </p>
-            </div>
-            """, unsafe_allow_html=True)
+        st.pyplot(fig)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
 # -------- Right --------
 with right:
     st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    st.header("Cluster Summary")
+    st.header("Customer Groups")
 
-    with st.expander("Low Engagement"):
-        st.write("Infrequent purchases and low total spending.")
+    with st.expander("High-Value Customers"):
+        st.write("Frequent purchases and high total spending.")
 
-    with st.expander("High Value"):
-        st.write("Strong purchasing patterns with higher revenue contribution.")
+    with st.expander("Regular Customers"):
+        st.write("Consistent purchasing behavior over time.")
 
-    with st.expander("Outliers"):
-        st.write("Customers with rare or abnormal behavior patterns.")
+    with st.expander("Low-Engagement Customers"):
+        st.write("Rare or minimal purchase activity.")
+
+    with st.expander("Unusual Patterns"):
+        st.write("Customers whose behavior does not fit common patterns.")
 
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ---------------- Footer ----------------
 st.markdown("""
 <div class="footer">
-    ShopScope • Customer Segmentation • Educational & Analytical Use
+    MarketScope • Customer Segmentation • Educational & Analytical Use Only
 </div>
 """, unsafe_allow_html=True)
