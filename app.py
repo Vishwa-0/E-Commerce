@@ -15,8 +15,7 @@ st.title("E-Commerce Customer Segmentation")
 st.caption("Density-based clustering using DBSCAN")
 
 # ---------------- Load Data ----------------
-df = pd.read_csv("data.csv", encoding="ISO-8859-1")
-
+df = pd.read_csv("customer_summary.csv")
 df = df.dropna(subset=["CustomerID"])
 df = df[df["Quantity"] > 0]
 df = df[df["UnitPrice"] > 0]
