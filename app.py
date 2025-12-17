@@ -11,28 +11,21 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("E-Commerce Customer Segmentation")
-st.caption("Density-based clustering using DBSCAN")
+# ---------------- Title ----------------
+st.title("🛒 E-Commerce Customer Segmentation using DBSCAN")
+st.caption("Density-based clustering on customer purchasing behavior")
 
-# ---------------- Load Data ----------------
-df = pd.read_csv("customer_summary.csv")
-df = df.dropna(subset=["CustomerID"])
-df = df[df["Quantity"] > 0]
-df = df[df["UnitPrice"] > 0]
-
-df["TotalPrice"] = df["Quantity"] * df["UnitPrice"]
-
-customer_df = df.groupby("CustomerID").agg(
-    TotalQuantity=("Quantity", "sum"),
-    TotalSpending=("TotalPrice", "sum")
-).reset_index()
+# ---------------- Load PROCESSED Data ---------------
+customer_df = pd.read_csv("customer_summary.csv")
 
 # ---------------- Load Model ----------------
 with open("dbscan_ecommerce.pkl", "rb") as f:
     dbscan = pickle.load(f)
 
-# ---------------- Scaling ----------------
+# ---------------- Feature Selection ----------------
 X = customer_df[["TotalQuantity", "TotalSpending"]]
+
+# ---------------- Scaling ----------------
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
 
@@ -44,8 +37,8 @@ st.sidebar.header("New Customer Input")
 
 qty = st.sidebar.number_input(
     "Total Quantity Purchased",
-    min_value=1,
-    value=int(customer_df["TotalQuantity"].median())
+    min_value=1.0,
+    value=float(customer_df["TotalQuantity"].median())
 )
 
 spending = st.sidebar.number_input(
@@ -68,9 +61,9 @@ with col1:
     st.subheader("Customer Classification")
 
     if user_cluster == -1:
-        st.warning("Customer is an outlier (rare purchasing behavior).")
+        st.warning("This customer is an outlier (unusual purchasing behavior).")
     else:
-        st.success(f"Customer belongs to cluster {user_cluster}")
+        st.success(f"This customer belongs to cluster {user_cluster}")
 
     st.metric("Total Customers", customer_df.shape[0])
     st.metric(
@@ -81,11 +74,11 @@ with col1:
 with col2:
     st.subheader("Cluster Visualization")
 
-    fig, ax = plt.subplots(figsize=(7,5))
+    fig, ax = plt.subplots(figsize=(7, 5))
 
     for c in set(labels):
         subset = customer_df[customer_df["Cluster"] == c]
-        label = "Outlier" if c == -1 else f"Cluster {c}"
+        label = "Outliers" if c == -1 else f"Cluster {c}"
 
         ax.scatter(
             subset["TotalQuantity"],
@@ -99,19 +92,19 @@ with col2:
         qty,
         spending,
         c="yellow",
-        s=200,
+        s=220,
         edgecolors="black",
         label="User"
     )
 
-    ax.set_xlabel("Total Quantity")
+    ax.set_xlabel("Total Quantity Purchased")
     ax.set_ylabel("Total Spending")
-    ax.set_title("DBSCAN Customer Clusters")
+    ax.set_title("DBSCAN Clusters with User Input")
     ax.legend()
     ax.grid(True)
 
     st.pyplot(fig)
 
-# ---------------- Data Preview ----------------
-st.subheader("Customer Summary Preview")
+# ---------------- Dataset Preview ----------------
+st.subheader("Customer Dataset Preview")
 st.dataframe(customer_df.head(10))
