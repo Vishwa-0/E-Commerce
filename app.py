@@ -8,7 +8,6 @@ from sklearn.cluster import DBSCAN
 # ---------------- Page Config ----------------
 st.set_page_config(
     page_title="E-Commerce DBSCAN Segmentation",
-    page_icon="🛒",
     layout="wide"
 )
 
