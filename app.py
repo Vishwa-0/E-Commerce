@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import pickle
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import DBSCAN
 
 # ---------------- Page Config ----------------
 st.set_page_config(
@@ -12,14 +12,30 @@ st.set_page_config(
     layout="wide"
 )
 
+# ---------------- CSS ----------------
+st.markdown("""
+<style>
+.glass {
+    background: rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(12px);
+    border-radius: 18px;
+    padding: 22px;
+    border: 1px solid rgba(255,255,255,0.3);
+}
+.metric {
+    font-size: 26px;
+    font-weight: 700;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ---------------- Header ----------------
 st.markdown(
-    """
-    <h1 style='text-align: center;'>🛒 E-Commerce Customer Segmentation</h1>
-    <p style='text-align: center; font-size: 18px;'>
-    Density-based clustering using DBSCAN to identify customer behavior patterns
-    </p>
-    """,
+    "<h1 style='text-align:center;'>🛒 E-Commerce Customer Segmentation</h1>",
+    unsafe_allow_html=True
+)
+st.markdown(
+    "<p style='text-align:center;'>Interactive DBSCAN clustering with density control</p>",
     unsafe_allow_html=True
 )
 
@@ -28,86 +44,89 @@ st.divider()
 # ---------------- Load Data ----------------
 customer_df = pd.read_csv("customer_summary.csv")
 
-with open("dbscan_ecommerce.pkl", "rb") as f:
-    dbscan = pickle.load(f)
-
 X = customer_df[["TotalQuantity", "TotalSpending"]]
-
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
 
-labels = dbscan.fit_predict(X_scaled)
-customer_df["Cluster"] = labels
-
-# ---------------- Sidebar ----------------
-st.sidebar.header("Customer Simulation Panel")
-
-qty = st.sidebar.number_input(
-    "Total Quantity Purchased",
-    min_value=1.0,
-    value=float(customer_df["TotalQuantity"].median()),
-    step=10.0
-)
-
-spending = st.sidebar.number_input(
-    "Total Spending",
-    min_value=1.0,
-    value=float(customer_df["TotalSpending"].median()),
-    step=100.0
-)
-
-run_btn = st.sidebar.button("Run DBSCAN Analysis")
-
-# ---------------- KPI Section ----------------
+# ---------------- Controls ----------------
 with st.container():
-    k1, k2, k3 = st.columns(3)
+    c1, c2, c3 = st.columns(3)
 
-    k1.metric("Total Customers", customer_df.shape[0])
-    k2.metric(
-        "Clusters Found",
-        len(set(labels)) - (1 if -1 in labels else 0)
-    )
-    k3.metric(
-        "Outliers Detected",
-        list(labels).count(-1)
-    )
+    with c1:
+        qty = st.slider(
+            "Total Quantity Purchased",
+            int(X["TotalQuantity"].min()),
+            int(X["TotalQuantity"].max()),
+            int(X["TotalQuantity"].median())
+        )
+
+    with c2:
+        spending = st.slider(
+            "Total Spending",
+            int(X["TotalSpending"].min()),
+            int(X["TotalSpending"].max()),
+            int(X["TotalSpending"].median())
+        )
+
+    with c3:
+        eps = st.slider(
+            "DBSCAN eps (density radius)",
+            0.2, 1.5, 0.6, 0.05
+        )
+
+run = st.button("Run DBSCAN", use_container_width=True)
 
 st.divider()
 
-# ---------------- Button Logic ----------------
-if run_btn:
+# ---------------- Action ----------------
+if run:
+    dbscan = DBSCAN(eps=eps, min_samples=5)
+
+    labels = dbscan.fit_predict(X_scaled)
+    customer_df["Cluster"] = labels
+
     user_point = np.array([[qty, spending]])
     user_scaled = scaler.transform(user_point)
 
-    X_combined = np.vstack([X_scaled, user_scaled])
-    labels_combined = dbscan.fit_predict(X_combined)
-    user_cluster = labels_combined[-1]
+    combined = np.vstack([X_scaled, user_scaled])
+    combined_labels = dbscan.fit_predict(combined)
+    user_cluster = combined_labels[-1]
 
-    col1, col2 = st.columns([1, 1.2])
+    # -------- KPIs --------
+    k1, k2, k3 = st.columns(3)
 
-    # -------- Result Card --------
-    with col1:
-        st.subheader("Customer Classification")
+    k1.markdown(
+        f"<div class='glass metric'>Customers<br>{len(customer_df)}</div>",
+        unsafe_allow_html=True
+    )
+
+    k2.markdown(
+        f"<div class='glass metric'>Clusters<br>{len(set(labels)) - (1 if -1 in labels else 0)}</div>",
+        unsafe_allow_html=True
+    )
+
+    k3.markdown(
+        f"<div class='glass metric'>Outliers<br>{list(labels).count(-1)}</div>",
+        unsafe_allow_html=True
+    )
+
+    st.divider()
+
+    # -------- Result + Plot --------
+    left, right = st.columns([1, 1.4])
+
+    with left:
+        st.markdown("<div class='glass'>", unsafe_allow_html=True)
+        st.subheader("📌 Customer Result")
 
         if user_cluster == -1:
-            st.error(
-                "This customer is an **outlier**.\n\n"
-                "Their purchasing behavior is rare compared to the existing population."
-            )
+            st.error("Outlier customer with rare purchasing behavior.")
         else:
-            st.success(
-                f"This customer belongs to **Cluster {user_cluster}**.\n\n"
-                "Their behavior matches a dense customer group."
-            )
+            st.success(f"Customer belongs to Cluster {user_cluster}")
 
-        st.markdown("### Input Summary")
-        st.write(f"- **Total Quantity:** {qty}")
-        st.write(f"- **Total Spending:** {spending}")
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    # -------- Visualization --------
-    with col2:
-        st.subheader("Cluster Map")
-
+    with right:
         fig, ax = plt.subplots(figsize=(7, 5))
 
         for c in set(labels):
@@ -123,31 +142,22 @@ if run_btn:
             )
 
         ax.scatter(
-            qty,
-            spending,
+            qty, spending,
+            s=260,
             c="yellow",
-            s=250,
             edgecolors="black",
             linewidths=2,
-            label="User Input"
+            label="User"
         )
 
-        ax.set_xlabel("Total Quantity Purchased")
+        ax.set_xlabel("Total Quantity")
         ax.set_ylabel("Total Spending")
-        ax.set_title("DBSCAN Customer Segmentation")
+        ax.set_title("DBSCAN Clustering Map")
         ax.legend()
         ax.grid(True)
 
         st.pyplot(fig)
 
 else:
-    st.info(
-        "Enter customer values in the sidebar and click **Run DBSCAN Analysis** "
-        "to classify the customer and visualize clusters."
-    )
+    st.info("Adjust sliders and click **Run DBSCAN** to explore customer clusters.")
 
-st.divider()
-
-# ---------------- Data Preview ----------------
-with st.expander("View Processed Customer Dataset"):
-    st.dataframe(customer_df.head(15))
