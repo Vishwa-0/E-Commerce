@@ -6,44 +6,13 @@ import pickle
 
 # ---------------- Page Config ----------------
 st.set_page_config(
-    page_title="Customer Segmentation Insight",
+    page_title="Customer Segmentation",
     layout="centered"
 )
 
-# ---------------- CSS ----------------
-st.markdown("""
-<style>
-.glass {
-    background: rgba(255, 255, 255, 0.2);
-    backdrop-filter: blur(10px);
-    border-radius: 16px;
-    padding: 20px;
-    border: 1px solid rgba(255,255,255,0.25);
-}
-.metric {
-    font-size: 24px;
-    font-weight: 700;
-    text-align: center;
-}
-.sidebox {
-    background: rgba(255, 255, 255, 0.12);
-    border-radius: 14px;
-    padding: 16px;
-    border: 1px solid rgba(255,255,255,0.2);
-}
-</style>
-""", unsafe_allow_html=True)
-
 # ---------------- Header ----------------
-st.markdown(
-    "<h1 style='text-align:center;'>🛒 Customer Behavior Segmentation</h1>",
-    unsafe_allow_html=True
-)
-
-st.markdown(
-    "<p style='text-align:center;'>DBSCAN clustering with parameters fixed via k-distance analysis</p>",
-    unsafe_allow_html=True
-)
+st.title("🛒 Customer Segmentation")
+st.caption("DBSCAN clustering with parameters fixed via k-distance analysis")
 
 st.divider()
 
@@ -59,68 +28,38 @@ with open("scaler_ecommerce.pkl", "rb") as f:
 
 X_scaled = scaler.transform(X)
 
-# ---------------- Layout Columns ----------------
-left, center, right = st.columns([1, 3, 1])
-
-# ---------------- Left Panel ----------------
-with left:
-    st.markdown("<div class='sidebox'>", unsafe_allow_html=True)
-    st.markdown("### About the Model")
-    st.markdown(
+# ---------------- Context (collapsible, calm) ----------------
+with st.expander("How this model works"):
+    st.write(
         """
         This application uses **DBSCAN**, a density-based clustering algorithm.
 
-        It discovers natural customer behavior patterns based on similarity,
-        rather than forcing customers into predefined groups.
+        Instead of forcing customers into fixed groups, DBSCAN discovers natural
+        patterns based on how similar customers are to one another.
 
-        Customers who do not fit well into any pattern are marked as *unusual*
-        instead of being incorrectly grouped.
+        The clustering parameters were selected during training using
+        k-distance analysis and are fixed for consistent evaluation.
         """
     )
-    st.markdown("</div>", unsafe_allow_html=True)
 
-# ---------------- Center Panel ----------------
-with center:
-    st.info(
-        "The clustering structure was learned during model training. "
-        "The density parameter (eps) was selected using k-distance analysis "
-        "and is fixed to ensure consistent evaluation."
-    )
+# ---------------- User Input ----------------
+st.subheader("Test a customer profile")
 
-    st.subheader("Test a New Customer")
+qty = st.slider(
+    "Total quantity purchased",
+    int(X["TotalQuantity"].min()),
+    int(X["TotalQuantity"].max()),
+    int(X["TotalQuantity"].median())
+)
 
-    qty = st.slider(
-        "Total Quantity Purchased",
-        int(X["TotalQuantity"].min()),
-        int(X["TotalQuantity"].max()),
-        int(X["TotalQuantity"].median())
-    )
+spending = st.slider(
+    "Total spending",
+    int(X["TotalSpending"].min()),
+    int(X["TotalSpending"].max()),
+    int(X["TotalSpending"].median())
+)
 
-    spending = st.slider(
-        "Total Spending",
-        int(X["TotalSpending"].min()),
-        int(X["TotalSpending"].max()),
-        int(X["TotalSpending"].median())
-    )
-
-    run = st.button("Analyze Customer", use_container_width=True)
-
-# ---------------- Right Panel ----------------
-with right:
-    st.markdown("<div class='sidebox'>", unsafe_allow_html=True)
-    st.markdown("###How to Read Results")
-    st.markdown(
-        """
-        • Each dot represents a customer  
-        • Distance indicates similarity  
-        • Groups form where behavior is similar  
-        • The yellow dot shows the selected customer  
-
-        If a customer is labeled *unusual*, it simply means
-        their behavior is rare compared to others.
-        """
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
+run = st.button("Analyze customer", use_container_width=True)
 
 st.divider()
 
@@ -136,35 +75,14 @@ if run:
     combined_labels = dbscan.fit_predict(combined)
     user_cluster = combined_labels[-1]
 
-    # ---------------- Cluster Meaning ----------------
+    # ---------------- Interpretation ----------------
     cluster_descriptions = {
-        0: "regular customers with moderate purchasing behavior",
-        1: "high-value customers who purchase frequently and spend more",
-        2: "low-engagement customers with infrequent or minimal purchases"
+        0: "customers with moderate purchasing activity",
+        1: "high-value customers who purchase frequently",
+        2: "customers with low purchasing engagement"
     }
 
-    # ---------------- KPIs ----------------
-    k1, k2, k3 = st.columns(3)
-
-    k1.markdown(
-        f"<div class='glass metric'>Total Customers<br>{len(customer_df)}</div>",
-        unsafe_allow_html=True
-    )
-
-    k2.markdown(
-        f"<div class='glass metric'>Customer Groups<br>{len(set(labels)) - (1 if -1 in labels else 0)}</div>",
-        unsafe_allow_html=True
-    )
-
-    k3.markdown(
-        f"<div class='glass metric'>Unusual Customers<br>{list(labels).count(-1)}</div>",
-        unsafe_allow_html=True
-    )
-
-    st.divider()
-
-    # ---------------- Result ----------------
-    st.subheader("Customer Insight")
+    st.subheader("Customer insight")
 
     if user_cluster == -1:
         st.warning(
@@ -173,7 +91,7 @@ if run:
         )
     else:
         st.success(
-            f"This customer belongs to a group of "
+            f"This customer most closely matches "
             f"**{cluster_descriptions.get(user_cluster, 'similar customers')}**."
         )
 
@@ -184,7 +102,7 @@ if run:
 
     for c in set(labels):
         subset = customer_df[customer_df["Cluster"] == c]
-        label = "Unusual Customers" if c == -1 else "Customer Group"
+        label = "Unusual customers" if c == -1 else "Customer group"
 
         ax.scatter(
             subset["TotalQuantity"],
@@ -197,20 +115,20 @@ if run:
     ax.scatter(
         qty,
         spending,
-        s=220,
-        c="yellow",
+        s=200,
+        c="gold",
         edgecolors="black",
-        linewidths=2,
-        label="Selected Customer"
+        linewidths=1.5,
+        label="Selected customer"
     )
 
-    ax.set_xlabel("Total Quantity Purchased")
-    ax.set_ylabel("Total Spending")
-    ax.set_title("Customer Segmentation Map")
+    ax.set_xlabel("Total quantity purchased")
+    ax.set_ylabel("Total spending")
+    ax.set_title("Customer behavior map")
     ax.grid(True)
     ax.legend()
 
     st.pyplot(fig)
 
 else:
-    st.info("Enter purchase details and click **Analyze Customer** to see where the customer fits.")
+    st.info("Adjust the values above and click **Analyze customer**.")
