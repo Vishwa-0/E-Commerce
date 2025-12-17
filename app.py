@@ -76,7 +76,7 @@ dbscan, scaler = load_models()
 @st.cache_data
 def load_data():
     base = os.path.dirname(__file__)
-    return pd.read_csv(os.path.join(base, "data.csv"))
+    return pd.read_csv(os.path.join(base, "customer_summary.csv"))
 
 df = load_data()
 
